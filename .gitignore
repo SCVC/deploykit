@@ -1,0 +1,22 @@
+# secrets / per-deployment config — NEVER commit
+config.env
+*.local
+.env
+secrets/
+
+# vendor installers — fetched at runtime, never committed
+installers/
+*.pkg
+*.msi
+*.dmg
+*.exe
+*.msu
+
+# device backups + run logs
+backups/
+logs/
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

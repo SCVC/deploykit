@@ -1,0 +1,14 @@
+<Configuration>
+  <Add OfficeClientEdition="64" Channel="Current">
+    <Product ID="O365ProPlusRetail">
+      <Language ID="en-us" />
+      <!-- Exclude apps you don't need -->
+      <!-- <ExcludeApp ID="OneNote" /> -->
+      <!-- <ExcludeApp ID="Publisher" /> -->
+      <!-- <ExcludeApp ID="Groove" /> -->
+    </Product>
+  </Add>
+  <!-- <Updates Enabled="TRUE" Channel="Current" /> -->
+  <RemoveMSI />
+  <Display Level="None" AcceptEULA="TRUE" />
+</Configuration>
