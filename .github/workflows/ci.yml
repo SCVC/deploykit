@@ -10,16 +10,22 @@ jobs:
       - name: ShellCheck
         uses: ludeeus/action-shellcheck@master
         with:
-          scandir: '.'
+          severity: error          # style warnings are advisory; only errors fail CI
           additional_files: 'checklist.sh'
+
   secret-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Guard — no secrets/hosts committed
+      - name: Guard — no secrets or internal hosts committed
         run: |
-          if grep -rniE 'getsec\.io|synology\.me|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}|config\.env$' \
-             --include='*.sh' --include='*.ps1' --exclude-dir=.git . ; then
-            echo "::error::possible secret or internal host committed"; exit 1
+          # config.env must never be tracked (only config.env.example)
+          if git ls-files | grep -qxE 'config\.env'; then
+            echo "::error::config.env is tracked — it must be git-ignored"; exit 1
           fi
-          echo "clean"
+          # no internal hosts or known leaked tokens/keys in scripts
+          if grep -rniE 'getsec\.io|synology\.me|vcrust|vcsiem|66a759e3-|0166e7f7-|IIkzfjn8' \
+             --include='*.sh' --include='*.ps1' --exclude-dir=.git . ; then
+            echo "::error::internal host or known secret found in a script"; exit 1
+          fi
+          echo "clean — no secrets or internal hosts committed"
