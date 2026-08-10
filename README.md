@@ -80,7 +80,8 @@ internal hostname. Keep `config.env.example` placeholder-only.
 
 - [ ] Homebrew tap (`scvc/tap/deploykit`)
 - [ ] `install.ps1` Windows bootstrap
-- [ ] Runtime installer fetch (Releases) so no binaries are ever bundled
+- [x] Runtime installer fetch — macOS (Chrome/RustDesk/Wazuh auto; Fleet via `FLEET_PKG_URL`)
+- [ ] Wire `FLEET_PKG_URL` into the Windows Fleet install (Chrome + RustDesk already auto-download)
 - [ ] Offboarding automation (account deprovision runbook + scripts)
 
 ## License

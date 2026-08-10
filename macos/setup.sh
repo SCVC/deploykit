@@ -35,9 +35,27 @@ warn() { log "${YELLOW}[WARN]${RESET} $*"; }
 fail() { log "${RED}[FAIL]${RESET} $*"; }
 
 need_installer() {  
-  if [[ -f "$INSTALLERS/$1" ]]; then return 0; fi
-  fail "Missing installer: installers/$1 — refresh the USB and retry."
+  # need_installer <filename> [download_url] — use a local copy if present, else download.
+  local name="$1" url="${2:-}"
+  [[ -f "$INSTALLERS/$name" ]] && return 0
+  if [[ -n "$url" ]]; then
+    log "Downloading $name ..."
+    mkdir -p "$INSTALLERS"
+    if curl -fL --retry 3 -o "$INSTALLERS/$name.part" "$url" 2>>"$LOG_FILE" && mv "$INSTALLERS/$name.part" "$INSTALLERS/$name"; then
+      ok "Downloaded $name ($(du -h "$INSTALLERS/$name" 2>/dev/null | cut -f1 | tr -d ' '))"
+      return 0
+    fi
+    rm -f "$INSTALLERS/$name.part"; fail "Download failed: $name from $url"; return 1
+  fi
+  fail "Missing installer: installers/$name and no download URL set (see config.env)."
   return 1
+}
+
+# Resolve the latest RustDesk .dmg URL for an arch (aarch64 | x86_64).
+rustdesk_url() {
+  local tag
+  tag=$(curl -fsSL https://api.github.com/repos/rustdesk/rustdesk/releases/latest 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4)
+  [[ -n "$tag" ]] && printf 'https://github.com/rustdesk/rustdesk/releases/download/%s/rustdesk-%s-%s.dmg' "$tag" "$tag" "$1"
 }
 
 app_version() {
@@ -92,10 +110,12 @@ case "$ARCH" in
   arm64)
     ARCH_LABEL="Apple Silicon"
     RUSTDESK_DMG="$RUSTDESK_DMG_ARM"
+    RUSTDESK_ARCH="aarch64"
     ;;
   x86_64)
     ARCH_LABEL="Intel"
     RUSTDESK_DMG="$RUSTDESK_DMG_INTEL"
+    RUSTDESK_ARCH="x86_64"
     ;;
   *)
     echo "Unrecognized architecture '$ARCH' — aborting."
@@ -184,7 +204,7 @@ install_rustdesk() {
   local v; v=$(app_version "/Applications/RustDesk.app")
   [[ -n "$v" ]] && log "RustDesk $v present; replacing with USB copy."
   log "Using $RUSTDESK_DMG ($ARCH_LABEL build)."
-  need_installer "$RUSTDESK_DMG" || return 1
+  need_installer "$RUSTDESK_DMG" "$(rustdesk_url "$RUSTDESK_ARCH")" || return 1
 
   pkill -x RustDesk 2>/dev/null || true
   local mount
@@ -240,7 +260,7 @@ do_wazuh() {
 
 install_fleet() {
   log "--- FleetDM: install fleetd (this also enrolls the host) ---"
-  need_installer "$FLEET_PKG" || return 1
+  need_installer "$FLEET_PKG" "${FLEET_PKG_URL:-}" || return 1
   [[ -d /opt/orbit ]] && log "fleetd present; pkg will upgrade/re-enroll."
 
   if installer -pkg "$INSTALLERS/$FLEET_PKG" -target / >>"$LOG_FILE" 2>&1; then
@@ -266,7 +286,7 @@ install_chrome() {
     ok "Chrome $v already installed (it self-updates; leaving it alone)."
     return 0
   fi
-  need_installer "$CHROME_PKG" || return 1
+  need_installer "$CHROME_PKG" "${CHROME_PKG_URL:-}" || return 1
   if installer -pkg "$INSTALLERS/$CHROME_PKG" -target / >>"$LOG_FILE" 2>&1; then
     ok "Chrome $(app_version "/Applications/Google Chrome.app") installed."
   else
