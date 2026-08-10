@@ -41,7 +41,12 @@ need_installer() {
   if [[ -n "$url" ]]; then
     log "Downloading $name ..."
     mkdir -p "$INSTALLERS"
-    if curl -fL --retry 3 -o "$INSTALLERS/$name.part" "$url" 2>>"$LOG_FILE" && mv "$INSTALLERS/$name.part" "$INSTALLERS/$name"; then
+    # send Cloudflare Access service-token headers ONLY to the Access-protected host (never to vendor CDNs)
+    local -a hdr=()
+    if [[ -n "${CF_ACCESS_CLIENT_ID:-}" && -n "${CF_ACCESS_HOST:-}" && "$url" == *"$CF_ACCESS_HOST"* ]]; then
+      hdr=(-H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+    fi
+    if curl -fL --retry 3 "${hdr[@]}" -o "$INSTALLERS/$name.part" "$url" 2>>"$LOG_FILE" && mv "$INSTALLERS/$name.part" "$INSTALLERS/$name"; then
       ok "Downloaded $name ($(du -h "$INSTALLERS/$name" 2>/dev/null | cut -f1 | tr -d ' '))"
       return 0
     fi

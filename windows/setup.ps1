@@ -79,7 +79,12 @@ function Fetch-Installer($name, $url, [switch]$Always) {
     $part = "$dest.part"
     try {
         $ProgressPreference = 'SilentlyContinue'   # much faster downloads
-        Invoke-WebRequest -Uri $url -OutFile $part -UseBasicParsing -ErrorAction Stop
+        # Cloudflare Access service-token headers ONLY for the Access-protected host (never vendor CDNs)
+        $hdrs = @{}
+        if ($CF_ACCESS_CLIENT_ID -and $CF_ACCESS_HOST -and ($url -like "*$CF_ACCESS_HOST*")) {
+            $hdrs['CF-Access-Client-Id'] = $CF_ACCESS_CLIENT_ID; $hdrs['CF-Access-Client-Secret'] = $CF_ACCESS_CLIENT_SECRET
+        }
+        Invoke-WebRequest -Uri $url -OutFile $part -Headers $hdrs -UseBasicParsing -ErrorAction Stop
         Move-Item $part $dest -Force
         $mb = [math]::Round((Get-Item $dest).Length / 1MB, 1)
         Ok "Downloaded $name ($mb MB)"
@@ -276,7 +281,7 @@ function Install-Fleet {
     Log "--- FleetDM: install fleetd (this also enrolls the host) ---"
     #   fleetctl package --type=msi --enable-scripts --fleet-desktop \
     #     --fleet-url=$FLEET_URL --enroll-secret=<secret>
-    $msi = Fetch-Installer $FLEET_MSI $FLEET_PKG_URL   # org-hosted fleetd MSI (config.env); enroll secret baked in
+    $msi = Fetch-Installer $FLEET_MSI $FLEET_MSI_URL   # org-hosted fleetd MSI (config.env); enroll secret baked in
     if (-not $msi) { return $false }
     $p = Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/qn" -Wait -PassThru
     if ($p.ExitCode -ne 0) { Fail "Fleet MSI failed (exit $($p.ExitCode))."; return $false }
