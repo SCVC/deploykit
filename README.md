@@ -81,7 +81,7 @@ internal hostname. Keep `config.env.example` placeholder-only.
 - [ ] Homebrew tap (`scvc/tap/deploykit`)
 - [ ] `install.ps1` Windows bootstrap
 - [x] Runtime installer fetch — macOS (Chrome/RustDesk/Wazuh auto; Fleet via `FLEET_PKG_URL`)
-- [ ] Wire `FLEET_PKG_URL` into the Windows Fleet install (Chrome + RustDesk already auto-download)
+- [x] Windows Fleet install uses `FLEET_PKG_URL` (Chrome + RustDesk already auto-download) — parity with macOS
 - [ ] Offboarding automation (account deprovision runbook + scripts)
 
 ## License

@@ -276,7 +276,7 @@ function Install-Fleet {
     Log "--- FleetDM: install fleetd (this also enrolls the host) ---"
     #   fleetctl package --type=msi --enable-scripts --fleet-desktop \
     #     --fleet-url=$FLEET_URL --enroll-secret=<secret>
-    $msi = Fetch-Installer $FLEET_MSI $null
+    $msi = Fetch-Installer $FLEET_MSI $FLEET_PKG_URL   # org-hosted fleetd MSI (config.env); enroll secret baked in
     if (-not $msi) { return $false }
     $p = Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/qn" -Wait -PassThru
     if ($p.ExitCode -ne 0) { Fail "Fleet MSI failed (exit $($p.ExitCode))."; return $false }
