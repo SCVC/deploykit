@@ -2,6 +2,14 @@ name: CI
 on:
   push: { branches: [ main ] }
   pull_request: { branches: [ main ] }
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   shellcheck:
     runs-on: ubuntu-latest
@@ -13,6 +21,24 @@ jobs:
         with:
           severity: error
           additional_files: 'checklist.sh'
+
+  shell-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shebang (enforced) + set -u (recommended)
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            if ! head -1 "$f" | grep -qE '^#!'; then
+              echo "::error file=$f::missing shebang"; fail=1
+            fi
+            if ! grep -qE '^[[:space:]]*set[[:space:]]+-[a-z]*u' "$f"; then
+              echo "::warning file=$f::no 'set -u' (recommend: set -euo pipefail)"
+            fi
+          done < <(git ls-files '*.sh')
+          [ "$fail" -eq 0 ] && echo "shell hygiene OK"
+          exit "$fail"
 
   powershell-lint:
     runs-on: ubuntu-latest    # ships pwsh preinstalled
@@ -38,6 +64,15 @@ jobs:
             Invoke-ScriptAnalyzer -Path $_.FullName -Severity Warning,Error | Format-Table -AutoSize
           }
 
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint GitHub Actions workflows
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
   secret-scan:
     runs-on: ubuntu-latest
     steps:
@@ -52,5 +87,10 @@ jobs:
           if grep -rniE 'getsec\.io|synology\.me|vcrust|vcsiem|66a759e3-|0166e7f7-|IIkzfjn8' \
              --include='*.sh' --include='*.ps1' --exclude-dir=.git . ; then
             echo "::error::internal host or known secret found in a script"; exit 1
+          fi
+          # generic secret shapes: private keys, cloud/vendor tokens
+          if grep -rniE --include='*.sh' --include='*.ps1' --include='*.md' --include='*.xml' --exclude-dir=.git \
+             -e '-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|xox[baprs]-[0-9A-Za-z-]{10,}|ghp_[0-9A-Za-z]{36}|AIza[0-9A-Za-z_-]{35}' . ; then
+            echo "::error::a generic secret pattern (private key / cloud token) was found"; exit 1
           fi
           echo "clean — no secrets or internal hosts committed"

@@ -1,0 +1,10 @@
+# Code ownership — auto-requests review from the maintainer on every PR.
+# (Review approval is not force-required in branch protection while the repo has a
+#  single maintainer, since GitHub blocks self-approval; the status-check gates are.)
+
+*                       @asorourx
+
+# Security-sensitive surfaces — always look here first.
+/config.env.example     @asorourx
+/.github/                @asorourx
+/SECURITY.md            @asorourx
