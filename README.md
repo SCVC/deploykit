@@ -95,10 +95,9 @@ to report vulnerabilities privately. In short:
 ## Roadmap
 
 ### Apps & deployment
-- [ ] **Microsoft Office** — macOS (suite `.pkg` + Volume License **Serializer** for perpetual, or
-  Microsoft 365 activation) & Windows (**Office Deployment Tool** + `configuration.xml`, installed
-  under `C:\Program Files\Microsoft Office`)
-- [ ] **Zoom** — macOS (IT-admin `.pkg` + config profile) & Windows (MSI with SSO/domain config)
+- [ ] **Microsoft Office** — macOS (suite `.pkg` + Volume License **Serializer** for perpetual) &
+  Windows (**Office Deployment Tool** + `configuration.xml`, installed under `C:\Program Files\Microsoft Office`)
+- [ ] **Zoom** — macOS
 - [ ] Homebrew tap (`scvc/tap/deploykit`)
 - [ ] `install.ps1` Windows bootstrap
 
