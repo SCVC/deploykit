@@ -1,5 +1,7 @@
 # deploykit
 
+[![CI](https://github.com/SCVC/deploykit/actions/workflows/ci.yml/badge.svg)](https://github.com/SCVC/deploykit/actions/workflows/ci.yml)
+
 **Volunteer Center of Santa Cruz County — IT device deployment kit.**
 
 Cross-platform scripts to onboard, offboard, secure, and back up staff machines
@@ -81,16 +83,34 @@ see [ROADMAP](#roadmap).
 
 ## Contributing
 
-`make lint` runs ShellCheck. CI blocks any commit that reintroduces a secret or
-internal hostname. Keep `config.env.example` placeholder-only.
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full workflow, and **[SECURITY.md](SECURITY.md)**
+to report vulnerabilities privately. In short:
+
+- `main` is **protected** — changes land only via a pull request with **all CI checks green**,
+  **signed commits**, and **linear history**. `make lint` runs ShellCheck locally.
+- Every PR runs five gates: **`shellcheck` · `powershell-lint` · `secret-scan` · `shell-hygiene` · `actionlint`**.
+- Keep `config.env.example` **placeholder-only**; document new settings there and in this README.
+- Record user-facing changes in **[CHANGELOG.md](CHANGELOG.md)** under `Unreleased`.
 
 ## Roadmap
 
+### Apps & deployment
+- [ ] **Microsoft Office** — macOS (suite `.pkg` + Volume License **Serializer** for perpetual, or
+  Microsoft 365 activation) & Windows (**Office Deployment Tool** + `configuration.xml`, installed
+  under `C:\Program Files\Microsoft Office`)
+- [ ] **Zoom** — macOS (IT-admin `.pkg` + config profile) & Windows (MSI with SSO/domain config)
 - [ ] Homebrew tap (`scvc/tap/deploykit`)
 - [ ] `install.ps1` Windows bootstrap
-- [x] Runtime installer fetch — macOS (Chrome/RustDesk/Wazuh auto; Fleet via `FLEET_PKG_URL`)
-- [x] Windows Fleet install uses `FLEET_PKG_URL` (Chrome + RustDesk already auto-download) — parity with macOS
+
+### Maintenance & lifecycle
+- [ ] **OS & software updates** — macOS (`softwareupdate`) & Windows (Windows Update / `winget upgrade`)
 - [ ] Offboarding automation (account deprovision runbook + scripts)
+
+### Done
+- [x] Runtime installer fetch — macOS (Chrome/RustDesk/Wazuh auto; Fleet via `FLEET_PKG_URL`)
+- [x] Windows Fleet install uses `FLEET_MSI_URL` — parity with macOS
+- [x] Self-heal / drift-reconcile (Fleet/Wazuh/RustDesk) — macOS + Windows
+- [x] CI hardening + contribution governance (branch protection, PR template, CONTRIBUTING/SECURITY)
 
 ## License
 

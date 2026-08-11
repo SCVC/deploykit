@@ -1,0 +1,33 @@
+name: Bug report
+description: Something in the setup/onboarding scripts didn't work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Do **not** paste secrets, tokens, or real hostnames. For security issues, see SECURITY.md."
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: ["macOS", "Windows", "Both / shared"]
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      placeholder: "e.g. macOS 15.5 / Windows 11 23H2"
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you run, what did you expect, what happened instead?
+      placeholder: "Command run, expected result, actual result…"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: From the kit's `logs/` (or `C:\ProgramData\staff-setup\logs`). Redact any secrets.
+      render: shell
