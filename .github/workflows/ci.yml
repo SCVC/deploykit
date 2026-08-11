@@ -14,6 +14,30 @@ jobs:
           severity: error
           additional_files: 'checklist.sh'
 
+  powershell-lint:
+    runs-on: ubuntu-latest    # ships pwsh preinstalled
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell (syntax — enforcing)
+        shell: pwsh
+        run: |
+          $bad = $false
+          Get-ChildItem -Recurse -Filter *.ps1 | ForEach-Object {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs) { $bad = $true; $errs | ForEach-Object { Write-Host "::error file=$($_.Extent.File)::$($_.Message)" } }
+            else { Write-Host "ok: $($_.FullName)" }
+          }
+          if ($bad) { exit 1 }
+      - name: PSScriptAnalyzer (advisory)
+        shell: pwsh
+        continue-on-error: true    # advisory, like shellcheck — warnings don't block
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -ErrorAction SilentlyContinue
+          Get-ChildItem -Recurse -Filter *.ps1 | ForEach-Object {
+            Invoke-ScriptAnalyzer -Path $_.FullName -Severity Warning,Error | Format-Table -AutoSize
+          }
+
   secret-scan:
     runs-on: ubuntu-latest
     steps:
