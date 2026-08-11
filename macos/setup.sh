@@ -387,6 +387,73 @@ config_chrome() {
   log "or on the machine at chrome://management"
 }
 
+# ============================================================
+#  HEAL / RECONCILE — fix already-installed services that have
+#  drifted off config.env (wrong URL/host) or gone offline.
+# ============================================================
+
+# Fleet URL currently baked into this host's orbit config (empty if none)
+fleet_current_url() {
+  grep -rhoE 'https?://fleet\.[a-z0-9.-]+' \
+    /Library/LaunchDaemons/com.fleetdm.orbit.plist /opt/orbit 2>/dev/null | sort -u | head -1
+}
+
+heal_fleet() {
+  if [[ ! -d /opt/orbit ]]; then log "Fleet not installed here — nothing to heal."; return 0; fi
+  local cur loaded=0
+  cur=$(fleet_current_url)
+  launchctl print system/com.fleetdm.orbit >/dev/null 2>&1 && loaded=1
+  if [[ "$cur" != "$FLEET_URL" || $loaded -eq 0 ]]; then
+    warn "Fleet drift — configured for '${cur:-unknown}', daemon loaded=$loaded; expected $FLEET_URL."
+    log "Re-installing fleetd from the current package (repoints the URL + re-enrolls)."
+    install_fleet
+  else
+    ok "Fleet already on $FLEET_URL and running — no change."
+  fi
+}
+
+heal_wazuh() {
+  if [[ ! -d /Library/Ossec ]]; then log "Wazuh not installed here — nothing to heal."; return 0; fi
+  local conf=/Library/Ossec/etc/ossec.conf cur running=0
+  cur=$(grep -oE '<address>[^<]+</address>' "$conf" 2>/dev/null | head -1 | sed 's/<[^>]*>//g' | xargs)
+  /Library/Ossec/bin/wazuh-control status 2>/dev/null | grep -q 'is running' && running=1
+  if [[ "$cur" != "$WAZUH_MANAGER" || $running -eq 0 ]]; then
+    warn "Wazuh drift — manager '${cur:-unset}', running=$running; expected $WAZUH_MANAGER."
+    cp "$conf" "$conf.deploykit-bak-$(date +%Y%m%d-%H%M%S)" 2>/dev/null
+    sed -i '' -E "s#<address>[^<]*</address>#<address>${WAZUH_MANAGER}</address>#g" "$conf"
+    log "Repointed ossec.conf to $WAZUH_MANAGER; restarting the agent."
+    /Library/Ossec/bin/wazuh-control restart >>"$LOG_FILE" 2>&1
+    sleep 3
+    if /Library/Ossec/bin/wazuh-control status 2>/dev/null | grep -q 'is running'; then
+      ok "Wazuh repointed to $WAZUH_MANAGER and running."
+    else
+      fail "Wazuh restarted but is not running — may need a fresh enroll (menu option 2)."; return 1
+    fi
+  else
+    ok "Wazuh already on $WAZUH_MANAGER and running — no change."
+  fi
+}
+
+heal_rustdesk() {
+  if [[ ! -d /Applications/RustDesk.app ]]; then log "RustDesk not installed here — nothing to heal."; return 0; fi
+  local toml="$CONSOLE_HOME/Library/Preferences/com.carriez.RustDesk/RustDesk2.toml"
+  if [[ ! -f "$toml" ]] || ! grep -q "$RUSTDESK_HOST" "$toml" 2>/dev/null; then
+    warn "RustDesk drift — not pointed at $RUSTDESK_HOST; reconfiguring."
+    config_rustdesk
+  else
+    ok "RustDesk already pointed at $RUSTDESK_HOST — no change."
+  fi
+}
+
+# Reconcile every installed service against config.env (skips anything not installed)
+heal_all() {
+  log "=== Heal / reconcile: checking installed services against config.env ==="
+  heal_fleet
+  heal_wazuh
+  heal_rustdesk
+  log "=== Heal complete ==="
+}
+
 # ---------- menu -----------------------------------------------
 
 RESULTS=""
@@ -406,6 +473,8 @@ while true; do
   echo "  ${YELLOW}${BOLD}Configure only (already installed)${RESET}"
   echo "    ${CYAN}${BOLD}5)${RESET} RustDesk -> point at our ID/relay server"
   echo "    ${CYAN}${BOLD}6)${RESET} Chrome   -> enroll in browser management"
+  echo "  ${YELLOW}${BOLD}Heal (fix installed services that drifted / went offline)${RESET}"
+  echo "    ${CYAN}${BOLD}h)${RESET} check + repoint Fleet / Wazuh / RustDesk to config.env"
   echo "  ${YELLOW}${BOLD}Bundles${RESET}"
   echo "    ${CYAN}${BOLD}a)${RESET} everything (1-6)"
   echo "  ${GREEN}${BOLD}s)${RESET} Show status     ${RED}${BOLD}q)${RESET} Quit"
@@ -415,6 +484,7 @@ while true; do
   case "$choice" in
     q|Q) break ;;
     s|S) show_status; continue ;;
+    h|H) heal_all; show_status; continue ;;
     a|A) choice="1 2 3 4 5 6" ;;
     *)   ;;
   esac

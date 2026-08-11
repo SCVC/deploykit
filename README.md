@@ -42,6 +42,14 @@ for your OS.
 Integrates with **RustDesk** (remote support), **Wazuh** (SIEM), **FleetDM/osquery**,
 and **Chrome Browser Cloud Management**.
 
+## Healing drift
+
+If a machine already has these agents but they've **drifted** — pointing at an old/dead
+URL or gone offline — run `macos/setup.sh` and pick **`h`**. It reconciles **Fleet, Wazuh,
+and RustDesk** against `config.env`: repoints + restarts whatever's stale (e.g. an agent
+still aimed at a retired domain), and leaves alone whatever's already correct or not
+installed. (Windows parity is next.)
+
 ## Configuration
 
 ```bash
