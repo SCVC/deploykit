@@ -393,6 +393,75 @@ function Config-Chrome {
     return $true
 }
 
+# ---------- heal / reconcile (fix drifted / offline agents) ------
+# Each Heal-* checks an already-installed service against config.env and repoints
+# only what's stale (old/dead URL) or offline. Skips anything not installed.
+
+function Heal-Fleet {
+    $svc = Get-Service "Fleet osquery" -ErrorAction SilentlyContinue
+    if (-not $svc) { Log "Fleet not installed here - nothing to heal."; return $true }
+    $cur = Get-ChildItem "C:\Program Files\Orbit" -Recurse -File -ErrorAction SilentlyContinue |
+           Select-String -Pattern 'https?://fleet\.[a-z0-9.-]+' -ErrorAction SilentlyContinue |
+           ForEach-Object { $_.Matches.Value } | Select-Object -Unique -First 1
+    if (($cur -ne $FLEET_URL) -or ($svc.Status -ne "Running")) {
+        Warn "Fleet drift - configured for '$cur', service $($svc.Status); expected $FLEET_URL."
+        Log "Re-installing fleetd from the current package (repoints URL + re-enrolls)."
+        return (Install-Fleet)
+    }
+    Ok "Fleet already on $FLEET_URL and running - no change."
+    return $true
+}
+
+function Heal-Wazuh {
+    $svc = Get-Service WazuhSvc -ErrorAction SilentlyContinue
+    if (-not $svc) { Log "Wazuh not installed here - nothing to heal."; return $true }
+    $conf = "C:\Program Files (x86)\ossec-agent\ossec.conf"
+    $cur = ""
+    if (Test-Path $conf) {
+        $m = Select-String -Path $conf -Pattern '<address>([^<]+)</address>' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($m) { $cur = $m.Matches[0].Groups[1].Value.Trim() }
+    }
+    if (($cur -ne $WAZUH_MANAGER) -or ($svc.Status -ne "Running")) {
+        Warn "Wazuh drift - manager '$cur', service $($svc.Status); expected $WAZUH_MANAGER."
+        if (Test-Path $conf) {
+            Copy-Item $conf "$conf.deploykit-bak-$(Get-Date -Format yyyyMMdd-HHmmss)" -Force
+            (Get-Content $conf -Raw) -replace '<address>[^<]*</address>', "<address>$WAZUH_MANAGER</address>" |
+                Set-Content $conf -Encoding ASCII
+            Log "Repointed ossec.conf to $WAZUH_MANAGER; restarting the agent."
+        }
+        Restart-Service WazuhSvc -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+        $svc = Get-Service WazuhSvc -ErrorAction SilentlyContinue
+        if ($svc.Status -eq "Running") { Ok "Wazuh repointed to $WAZUH_MANAGER and running."; return $true }
+        Fail "Wazuh restarted but not running - may need a fresh enroll (menu option 2)."
+        return $false
+    }
+    Ok "Wazuh already on $WAZUH_MANAGER and running - no change."
+    return $true
+}
+
+function Heal-RustDesk {
+    if (-not (Test-Path "C:\Program Files\RustDesk\rustdesk.exe")) {
+        Log "RustDesk not installed here - nothing to heal."; return $true
+    }
+    $cfg = "C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config\RustDesk2.toml"
+    if ((-not (Test-Path $cfg)) -or -not (Select-String -Path $cfg -Pattern $RUSTDESK_HOST -Quiet -ErrorAction SilentlyContinue)) {
+        Warn "RustDesk drift - not pointed at $RUSTDESK_HOST; reconfiguring."
+        return (Config-RustDesk)
+    }
+    Ok "RustDesk already pointed at $RUSTDESK_HOST - no change."
+    return $true
+}
+
+function Heal-All {
+    Log "=== Heal / reconcile: checking installed services against config.env ==="
+    Heal-Fleet    | Out-Null
+    Heal-Wazuh    | Out-Null
+    Heal-RustDesk | Out-Null
+    Log "=== Heal complete ==="
+    return $true
+}
+
 # ---------- menu -------------------------------------------------
 $Results = @()
 function Run-Step($label, $fn) {
@@ -411,6 +480,8 @@ while ($true) {
     Write-Host "  Configure only (already installed)" -ForegroundColor Yellow
     Write-Host "    5) RustDesk -> point at our ID/relay server"
     Write-Host "    6) Chrome   -> backup bookmarks + enroll in management"
+    Write-Host "  Heal (fix installed services that drifted / went offline)" -ForegroundColor Yellow
+    Write-Host "    h) reconcile Fleet/Wazuh/RustDesk to config.env"
     Write-Host "  Bundles" -ForegroundColor Yellow
     Write-Host "    a) everything (1-6)"
     Write-Host "  s) Show status     q) Quit"
@@ -419,6 +490,7 @@ while ($true) {
     switch -Regex ($choice) {
         '^[qQ]$' { $choice = $null }
         '^[sS]$' { Show-Status; continue }
+        '^[hH]$' { Heal-All; Show-Status; continue }
         '^[aA]$' { $choice = "1 2 3 4 5 6" }
     }
     if (-not $choice) { break }
