@@ -11,6 +11,7 @@ this project aims for [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   issue templates, and this changelog.
 - **CI hardening:** new `shell-hygiene` (shebang + `set -u`) and `actionlint` (workflow lint)
   jobs; branch protection on `main` requiring green checks, signed commits, and linear history.
+- `.editorconfig` for consistent charset, line endings, and trailing-whitespace handling.
 
 ### Changed
 - Documented the professional PR workflow and CI gates in the README.
