@@ -290,6 +290,9 @@ function Install-Fleet {
     if ($svc -and $svc.Status -eq "Running") {
         Ok "fleetd installed and running (enroll secret baked into the MSI)."
         Log "MANUAL CHECK: confirm this host appears at $FLEET_URL"
+
+        # Restart Fleet Desktop to pick up new enrollment / config
+        try { Stop-Process -Name "Fleet Desktop" -Force -ErrorAction SilentlyContinue } catch { }
         return $true
     }
     Fail "Fleet service not running after install."

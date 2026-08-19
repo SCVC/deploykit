@@ -274,7 +274,10 @@ install_fleet() {
     fail "Fleet pkg install failed — see log."; return 1
   fi
 
+  # Restart Fleet Desktop to pick up new enrollment / config
+  pkill -x "Fleet Desktop" 2>/dev/null || true
   sleep 3
+
   if launchctl print system/com.fleetdm.orbit >/dev/null 2>&1; then
     ok "orbit daemon is loaded."
     log "MANUAL CHECK: confirm this host appears (and its profile status) at $FLEET_URL"
