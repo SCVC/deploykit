@@ -1,0 +1,23 @@
+name: Feature request
+description: Propose a new capability (an app to deploy, an automation, etc.).
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / need
+      description: What are you trying to accomplish on staff devices?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should deploykit do? Note macOS vs Windows differences if relevant.
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Platforms
+      options:
+        - label: macOS
+        - label: Windows
