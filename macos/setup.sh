@@ -279,6 +279,9 @@ install_fleet() {
   sudo launchctl kickstart -k system/com.fleetdm.orbit 2>/dev/null || { sudo launchctl unload /Library/LaunchDaemons/com.fleetdm.orbit.plist 2>/dev/null; sudo launchctl load /Library/LaunchDaemons/com.fleetdm.orbit.plist 2>/dev/null; }
   sleep 3
 
+  # Verify the service actually restarted before relaunching Desktop
+  if ! launchctl print system/com.fleetdm.orbit >/dev/null 2>&1; then fail "orbit failed to restart after enrollment."; return 1; fi
+
   # Relaunch Fleet Desktop GUI
   log "Relaunching Fleet Desktop..."
   open -a "Fleet Desktop" 2>/dev/null || true

@@ -296,6 +296,10 @@ function Install-Fleet {
         Restart-Service -Name "Fleet osquery" -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 3
 
+        # Verify the service actually restarted before relaunching Desktop
+        $svc = Get-Service -Name "Fleet osquery" -ErrorAction SilentlyContinue
+        if (-not $svc -or $svc.Status -ne "Running") { Fail "Fleet service failed to restart after enrollment."; return $false }
+
         # Relaunch Fleet Desktop GUI
         Log "Relaunching Fleet Desktop..."
         Start-Process -FilePath "$env:ProgramFiles\Orbit\bin\desktop\fleet-desktop.exe" -ErrorAction SilentlyContinue
