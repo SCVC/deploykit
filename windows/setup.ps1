@@ -291,8 +291,14 @@ function Install-Fleet {
         Ok "fleetd installed and running (enroll secret baked into the MSI)."
         Log "MANUAL CHECK: confirm this host appears at $FLEET_URL"
 
-        # Restart Fleet Desktop to pick up new enrollment / config
-        try { Stop-Process -Name "Fleet Desktop" -Force -ErrorAction SilentlyContinue } catch { }
+        # Restart the orbit service to force re-enrollment/config re-read, then relaunch Fleet Desktop
+        Log "Restarting Fleet osquery service to pick up new enrollment..."
+        Restart-Service -Name "Fleet osquery" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+
+        # Relaunch Fleet Desktop GUI
+        Log "Relaunching Fleet Desktop..."
+        Start-Process -FilePath "$env:ProgramFiles\Fleet\Fleet Desktop.exe" -ErrorAction SilentlyContinue
         return $true
     }
     Fail "Fleet service not running after install."
