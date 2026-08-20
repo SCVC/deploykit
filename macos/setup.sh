@@ -276,7 +276,7 @@ install_fleet() {
 
   # Restart the orbit service to force re-enrollment/config re-read, then relaunch Fleet Desktop
   log "Restarting orbit service to pick up new enrollment..."
-  sudo launchctl kickstart -k system/com.fleetdm.orbit 2>/dev/null || sudo launchctl unload /Library/LaunchDaemons/com.fleetdm.orbit.plist 2>/dev/null && sudo launchctl load /Library/LaunchDaemons/com.fleetdm.orbit.plist 2>/dev/null
+  sudo launchctl kickstart -k system/com.fleetdm.orbit 2>/dev/null || { sudo launchctl unload /Library/LaunchDaemons/com.fleetdm.orbit.plist 2>/dev/null; sudo launchctl load /Library/LaunchDaemons/com.fleetdm.orbit.plist 2>/dev/null; }
   sleep 3
 
   # Relaunch Fleet Desktop GUI

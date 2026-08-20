@@ -298,7 +298,7 @@ function Install-Fleet {
 
         # Relaunch Fleet Desktop GUI
         Log "Relaunching Fleet Desktop..."
-        Start-Process -FilePath "$env:ProgramFiles\Fleet\Fleet Desktop.exe" -ErrorAction SilentlyContinue
+        Start-Process -FilePath "$env:ProgramFiles\Orbit\bin\desktop\fleet-desktop.exe" -ErrorAction SilentlyContinue
         return $true
     }
     Fail "Fleet service not running after install."
