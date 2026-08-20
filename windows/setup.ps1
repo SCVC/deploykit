@@ -290,6 +290,19 @@ function Install-Fleet {
     if ($svc -and $svc.Status -eq "Running") {
         Ok "fleetd installed and running (enroll secret baked into the MSI)."
         Log "MANUAL CHECK: confirm this host appears at $FLEET_URL"
+
+        # Restart the orbit service to force re-enrollment/config re-read, then relaunch Fleet Desktop
+        Log "Restarting Fleet osquery service to pick up new enrollment..."
+        Restart-Service -Name "Fleet osquery" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+
+        # Verify the service actually restarted before relaunching Desktop
+        $svc = Get-Service -Name "Fleet osquery" -ErrorAction SilentlyContinue
+        if (-not $svc -or $svc.Status -ne "Running") { Fail "Fleet service failed to restart after enrollment."; return $false }
+
+        # Relaunch Fleet Desktop GUI
+        Log "Relaunching Fleet Desktop..."
+        Start-Process -FilePath "$env:ProgramFiles\Orbit\bin\desktop\fleet-desktop.exe" -ErrorAction SilentlyContinue
         return $true
     }
     Fail "Fleet service not running after install."

@@ -274,7 +274,19 @@ install_fleet() {
     fail "Fleet pkg install failed — see log."; return 1
   fi
 
+  # Restart the orbit service to force re-enrollment/config re-read, then relaunch Fleet Desktop
+  log "Restarting orbit service to pick up new enrollment..."
+  sudo launchctl kickstart -k system/com.fleetdm.orbit 2>/dev/null || { sudo launchctl unload /Library/LaunchDaemons/com.fleetdm.orbit.plist 2>/dev/null; sudo launchctl load /Library/LaunchDaemons/com.fleetdm.orbit.plist 2>/dev/null; }
   sleep 3
+
+  # Verify the service actually restarted before relaunching Desktop
+  if ! launchctl print system/com.fleetdm.orbit >/dev/null 2>&1; then fail "orbit failed to restart after enrollment."; return 1; fi
+
+  # Relaunch Fleet Desktop GUI
+  log "Relaunching Fleet Desktop..."
+  open -a "Fleet Desktop" 2>/dev/null || true
+  sleep 2
+
   if launchctl print system/com.fleetdm.orbit >/dev/null 2>&1; then
     ok "orbit daemon is loaded."
     log "MANUAL CHECK: confirm this host appears (and its profile status) at $FLEET_URL"
