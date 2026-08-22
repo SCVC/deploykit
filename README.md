@@ -119,3 +119,5 @@ to report vulnerabilities privately. In short:
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+<!-- single-review webhook test 2026-08-22T23:29:16Z -->
