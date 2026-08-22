@@ -1,5 +1,4 @@
-#!/bin/bash
-# File              : CleanupOSX.sh
+#!/usr/bin/env bash
 # Author            : amrx <amrx@live.com>
 # Date              : 02.02.2019
 # Last Modified Date: 03.01.2019
@@ -18,8 +17,10 @@ bytesToHuman() {
 # Ask for the administrator password upfront
 sudo -v
 
-# Keep-alive sudo until `clenaup.sh` has finished
-while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+# Keep-alive sudo only while this script is actually running.
+# The background subshell exits when the parent PID dies (no indefinite escalation).
+SUDO_PID=$$
+while kill -0 "$SUDO_PID" 2>/dev/null; do sudo -n true; sleep 60; done 2>/dev/null &
 
 oldAvailable=$(df / | tail -1 | awk '{print $4}')
 
