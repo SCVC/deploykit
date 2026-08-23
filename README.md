@@ -119,3 +119,5 @@ to report vulnerabilities privately. In short:
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+<!-- mention-trigger test 2026-08-23T00:23:26Z -->
