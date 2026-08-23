@@ -119,3 +119,5 @@ to report vulnerabilities privately. In short:
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+<!-- one-review-guarantee test 2026-08-23T00:06:26Z -->
