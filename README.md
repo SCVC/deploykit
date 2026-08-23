@@ -119,3 +119,5 @@ to report vulnerabilities privately. In short:
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+<!-- no-leak review test 2026-08-23T03:33:27Z -->
