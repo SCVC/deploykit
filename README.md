@@ -119,3 +119,5 @@ to report vulnerabilities privately. In short:
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+<!-- post-revert auto-review test 2026-08-23T03:21:31Z -->
