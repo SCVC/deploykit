@@ -95,9 +95,7 @@ to report vulnerabilities privately. In short:
 ## Roadmap
 
 ### Apps & deployment
-- [ ] **Konica Minolta C258** drivers/profiles — HWCC
-- [ ] **Konica Minolta C308** drivers/profiles — VCHQ (17th Ave)
-- [ ] **Konica Minolta C458** drivers/profiles — MWC (Watsonville)
+- [ ] **Konica Minolta MFP** drivers/profiles (C258 / C308 / C458) — per site
 - [ ] **RustDesk** — unattended install + VC config (static password set at runtime)
 - [ ] **RustDesk** — post-install script to pull hostname + IP and report to inventory
 - [ ] **Microsoft Office** — macOS (suite `.pkg` + Volume License **Serializer** for perpetual) &
