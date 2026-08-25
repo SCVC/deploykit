@@ -14,7 +14,8 @@ param(
     [string]$Manager   = "wazuh.example.com",
     [string]$AgentName = "",
     [string]$Password  = "",
-    [string]$Version   = "4.14.3-1"
+    [string]$Version   = "4.14.3-1",
+    [switch]$Force     = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -90,10 +91,37 @@ Log "Manager: $Manager   Agent name: $AgentName" "Cyan"
 
 # ---------- connectivity check --------------------------------
 
+Log "Checking connectivity to $Manager on ports 1514/1515..."
+$portsReachable = 0
 foreach ($port in 1515, 1514) {
-    $t = Test-NetConnection -ComputerName $Manager -Port $port -WarningAction SilentlyContinue
-    if ($t.TcpTestSucceeded) { Ok "${Manager}:${port} --- reachable" }
-    else { Warn "${Manager}:${port} --- unreachable (check firewall/DNS); continuing anyway" }
+    $conn = Test-NetConnection -ComputerName $Manager -Port $port -WarningAction SilentlyContinue -InformationLevel Quiet
+    if ($conn.TcpTestSucceeded) {
+        Ok "${Manager}:${port} --- reachable"
+        $portsReachable++
+    } else {
+        Warn "${Manager}:${port} --- unreachable"
+    }
+}
+
+if ($portsReachable -eq 0) {
+    if ($Force) {
+        Warn "Both ports are unreachable, but -Force was provided. Continuing."
+    } else {
+        Fail "Both agent ports (1515/tcp, 1514/tcp) are unreachable."
+        Write-Host ""
+        Write-Host "  This is often caused by one of the following:" -ForegroundColor Yellow
+        Write-Host "    1. A firewall on this machine, the network, or the server is blocking connections on these ports." -ForegroundColor Yellow
+        Write-Host "    2. The manager hostname points to a Cloudflare (or other) proxy that only tunnels HTTP/S traffic." -ForegroundColor Yellow
+        Write-Host "       The Wazuh agent requires a direct connection to its manager on these TCP ports." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "  Action:" -ForegroundColor Green
+        Write-Host "    - For cloud-hosted managers, ensure the hostname you are using is a DNS-only (grey-cloud)" -ForegroundColor Green
+        Write-Host "      record that resolves directly to the manager's public IP." -ForegroundColor Green
+        Write-Host "    - For on-premise managers, use the manager's LAN IP address." -ForegroundColor Green
+        Write-Host "    - If you are certain the host is reachable and this check is a false negative, re-run with the '-Force' switch." -ForegroundColor Green
+        Write-Host ""
+        exit 1
+    }
 }
 
 # ---------- get the MSI ----------------------------------------

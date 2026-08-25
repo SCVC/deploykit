@@ -70,6 +70,7 @@ Options:
   -n  Agent name       (default: machine hostname)
   -p  Password         (optional)
   -h  Show this help
+  --force              Bypass port check
   --remove             Uninstall and remove the Wazuh agent
 
 EOF
@@ -136,7 +137,7 @@ _manual_install() {
 
   # ── Enrollment server ──
   echo -e "${BOLD}Enrollment Server${NC}"
-  echo -e "  ${BLUE}Examples:${NC} wazuh.example.com  |  siem.example.org  |  192.168.1.100/24"
+  echo -e "  ${BLUE}Examples:${NC} wazuh.example.com  |  192.168.1.100"
   read -rp "  Enter enrollment host: " ENROLL_HOST
   [[ -n "${ENROLL_HOST:-}" ]] || die "Enrollment host cannot be empty."
   echo ""
@@ -200,6 +201,7 @@ read_auth_file() {
 #  Shared install flow
 # ──────────────────────────────────────────────
 _run_install() {
+  local force_check="${1:-}"
   local manager
   manager="$(normalize_host "$ENROLL_HOST")"
 
@@ -215,7 +217,7 @@ _run_install() {
   read -rp "$(echo -e "${BOLD}Proceed with installation? [Y/n]:${NC} ")" confirm
   [[ "${confirm:-Y}" =~ ^[Yy]?$ ]] || die "Installation cancelled by user."
 
-  check_ports    "$manager"
+  check_ports    "$manager" "$force_check"
   stop_existing_agent
 
   if is_linux; then
@@ -301,19 +303,49 @@ remove_agent() {
 # ──────────────────────────────────────────────
 check_ports() {
   local host="$1"
+  local force_check="${2:-}"
   if ! command -v nc &>/dev/null; then
     warn "nc not found; skipping port check."
     return
   fi
   info "Checking connectivity to ${host} on ports 1514 / 1515…"
+  local port_ok_count=0
   local port
   for port in 1515 1514; do
     if nc -z -w3 "$host" "$port" &>/dev/null; then
       ok "  ${host}:${port} — reachable"
+      ((port_ok_count++))
     else
-      warn "  ${host}:${port} — unreachable (verify firewall / routing)"
+      warn "  ${host}:${port} — unreachable"
     fi
   done
+
+  if [[ $port_ok_count -eq 0 ]]; then
+    if [[ "$force_check" == "--force" ]]; then
+      warn "Both ports are unreachable, but --force was provided. Continuing."
+    else
+      err "Both agent ports (1515/tcp, 1514/tcp) are unreachable."
+      cat <<'EOF'
+
+  This is often caused by one of the following:
+    1. A firewall on this machine, the network, or the server is blocking
+       connections on these ports.
+    2. The manager hostname points to a Cloudflare (or other) proxy that
+       only tunnels HTTP/S traffic. The Wazuh agent requires a direct
+       connection to its manager on these TCP ports.
+
+  Action:
+    - For cloud-hosted managers (like Wazuh Cloud or a self-hosted instance
+      behind a proxy), ensure the hostname you are using is a DNS-only
+      (grey-cloud) record that resolves directly to the manager's public IP.
+    - For on-premise managers, use the manager's LAN IP address.
+    - If you are certain the host is reachable and this check is a false
+      negative, re-run with the '--force' flag to bypass it.
+
+EOF
+      die "Port check failed. Use --force to override."
+    fi
+  fi
 }
 
 # ──────────────────────────────────────────────
@@ -505,13 +537,16 @@ EOF
 #  Argument parsing (non-interactive mode)
 # ──────────────────────────────────────────────
 parse_args() {
-  # Handle --remove flag
+  # Handle --remove and --force flags
+  local force_flag=""
   for arg in "$@"; do
     if [[ "$arg" == "--remove" ]]; then
       need_root
       detect_paths
       remove_agent
       exit 0
+    elif [[ "$arg" == "--force" ]]; then
+      force_flag="--force"
     fi
   done
 
@@ -544,7 +579,7 @@ parse_args() {
 
   [[ -z "${AUTH_PASSWORD:-}" ]] && info "No password supplied — enrolling without auth."
 
-  _run_install
+  _run_install "$force_flag"
 }
 
 # ──────────────────────────────────────────────
