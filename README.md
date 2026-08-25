@@ -52,6 +52,21 @@ and RustDesk** against `config.env`: repoints + restarts whatever's stale (e.g. 
 still aimed at a retired domain), and leaves alone whatever's already correct or not
 installed. (Windows parity is next.)
 
+## FleetDM enrollment
+
+Fleet's agent is org-specific — the **enroll secret and server URL are baked into the
+installer at build time**, so you generate the package once with `fleetctl`, host it, then
+point `config.env` at it. `macos/setup.sh` / `windows/setup.ps1` (option **3**) install it.
+
+```bash
+# macOS .pkg / Windows .msi — enroll secret + URL baked in at build time
+fleetctl package --type=pkg --fleet-url=https://fleet.example.com --enroll-secret=<enroll-secret>
+fleetctl package --type=msi --fleet-url=https://fleet.example.com --enroll-secret=<enroll-secret>
+```
+
+Host the resulting installer and set `FLEET_PKG_URL` (macOS) / `FLEET_MSI_URL` (Windows) in
+`config.env`. Leave them blank to skip Fleet.
+
 ## Configuration
 
 ```bash
