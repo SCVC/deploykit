@@ -7,16 +7,28 @@ this project aims for [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
-- **Fleet Enrollment Scripts**: New scripts `macos/fleet-enroll.sh` and `windows/fleet-enroll.ps1` to handle Fleet agent installation and enrollment. The scripts gracefully skip enrollment if the required environment variables (`FLEET_PKG_URL`/`FLEET_MSI_URL` and `FLEET_ENROLL_SECRET`) are not set, providing clear instructions for generating and hosting the agent packages.
-- **Wazuh Port Check Override**: Added a `--force` flag to the Wazuh enrollment scripts (`macos/wazuh-enroll.sh` and `windows/wazuh-enroll.ps1`) to bypass the initial port connectivity check.
+- **Contribution governance:** PR template, `CONTRIBUTING.md`, `SECURITY.md`, `CODEOWNERS`,
+  issue templates, and this changelog.
+- **CI hardening:** new `shell-hygiene` (shebang + `set -u`) and `actionlint` (workflow lint)
+  jobs; branch protection on `main` requiring green checks, signed commits, and linear history.
+- `.editorconfig` for consistent charset, line endings, and trailing-whitespace handling.
+- **Wazuh port-check override:** a `--force` flag on `macos/wazuh-enroll.sh` and
+  `windows/wazuh-enroll.ps1` to bypass the preflight connectivity check when needed.
 
 ### Changed
-- **Wazuh Enrollment Preflight Check**: The port check in the Wazuh enrollment scripts is now a hard failure instead of a warning. If ports 1514 and 1515 are unreachable, the script will abort with a detailed error message explaining the common Cloudflare proxy pitfall and advising the use of a direct-access hostname or IP.
-- **Improved Documentation**: Updated the `README.md` to include instructions for the new Fleet enrollment process and the `config.env.example` to reflect the necessary Fleet-related variables. Removed misleading `siem.example.org`-style hostnames from Wazuh enrollment examples.
+- Documented the professional PR workflow and CI gates in the README.
+- **Wazuh enrollment preflight is now a hard failure** (was a warning): if the manager's
+  raw TCP ports 1515/1514 are unreachable the script aborts with an actionable error
+  explaining the Cloudflare-proxied-hostname pitfall (use a DNS-only name → manager public
+  IP, or the LAN IP), overridable with `--force`. Removed misleading `siem.*` enroll-host
+  examples. Applies to macOS and Windows.
+- Documented Fleet package generation (`fleetctl`) and the `FLEET_PKG_URL` / `FLEET_MSI_URL`
+  flow in the README.
 
 ### Fixed
-- **Silent Wazuh Enrollment Failures**: Corrected an issue where the Wazuh enrollment scripts would silently fail if the enrollment host was a Cloudflare-proxied (HTTPS-only) hostname. The new preflight check prevents this by enforcing direct connectivity.
-
+- **Silent Wazuh enrollment failures** against Cloudflare-proxied (HTTPS-only) hostnames —
+  the proxy does not forward 1514/1515, so agents silently failed to enroll. The new
+  preflight prevents enrolling into a host that cannot carry those ports.
 
 ## Prior work
 

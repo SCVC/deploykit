@@ -38,9 +38,8 @@ for your OS.
 |---|---|---|
 | Onboard a new machine (apps + prefs) | `onboarding/macos-onboard.sh` | `onboarding/windows-onboard.ps1` |
 | Full setup (remote/SIEM/fleet/browser) | `macos/setup.sh` | `windows/setup.ps1` |
-|| Wazuh SIEM enrollment | `macos/wazuh-enroll.sh` | `windows/wazuh-enroll.ps1` |
-|| FleetDM/osquery enrollment | `macos/fleet-enroll.sh` | `windows/fleet-enroll.ps1` |
-|| Backup / cleanup helpers | `scripts/*.sh` | — |
+| Wazuh SIEM enrollment | `macos/wazuh-enroll.sh` | `windows/wazuh-enroll.ps1` |
+| Backup / cleanup helpers | `scripts/*.sh` | — |
 
 Integrates with **RustDesk** (remote support), **Wazuh** (SIEM), **FleetDM/osquery**,
 and **Chrome Browser Cloud Management**.
@@ -53,25 +52,20 @@ and RustDesk** against `config.env`: repoints + restarts whatever's stale (e.g. 
 still aimed at a retired domain), and leaves alone whatever's already correct or not
 installed. (Windows parity is next.)
 
-## FleetDM Enrollment
+## FleetDM enrollment
 
-To enroll devices in Fleet, you first need to generate a platform-specific installer package. This is done using the `fleetctl` command-line tool.
+Fleet's agent is org-specific — the **enroll secret and server URL are baked into the
+installer at build time**, so you generate the package once with `fleetctl`, host it, then
+point `config.env` at it. `macos/setup.sh` / `windows/setup.ps1` (option **3**) install it.
 
 ```bash
-# For macOS (.pkg)
-fleetctl package --type=pkg --fleet-url=https://your.fleet.server --enroll-secret=YOUR_ENROLL_SECRET
-
-# For Windows (.msi)
-fleetctl package --type=msi --fleet-url=https://your.fleet.server --enroll-secret=YOUR_ENROLL_SECRET
+# macOS .pkg / Windows .msi — enroll secret + URL baked in at build time
+fleetctl package --type=pkg --fleet-url=https://fleet.example.com --enroll-secret=<enroll-secret>
+fleetctl package --type=msi --fleet-url=https://fleet.example.com --enroll-secret=<enroll-secret>
 ```
 
-Once you have generated the installer, you must host it on a web server and provide the URL in the `config.env` file, along with the enroll secret.
-
-- `FLEET_PKG_URL`: The URL to the macOS `.pkg` installer.
-- `FLEET_MSI_URL`: The URL to the Windows `.msi` installer.
-- `FLEET_ENROLL_SECRET`: The enroll secret for your Fleet instance.
-
-The enrollment scripts (`macos/fleet-enroll.sh` and `windows/fleet-enroll.ps1`) will automatically use these variables to download, install, and enroll the agent. If these variables are not set, the scripts will provide instructions and exit gracefully.
+Host the resulting installer and set `FLEET_PKG_URL` (macOS) / `FLEET_MSI_URL` (Windows) in
+`config.env`. Leave them blank to skip Fleet.
 
 ## Configuration
 
