@@ -16,6 +16,12 @@ this project aims for [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Changed
 - Documented the professional PR workflow and CI gates in the README.
 
+### Fixed
+- **`macos/setup.sh` aborted on startup** with `RUSTDESK_DMG_ARM: unbound variable`
+  for any kit built from `config.env.example`: the installer filenames
+  (`RUSTDESK_DMG_ARM`, `RUSTDESK_DMG_INTEL`, `CHROME_PKG`) were referenced but
+  never assigned. They now default in `setup.sh`, overridable in `config.env`.
+
 ## Prior work
 
 ### Added
