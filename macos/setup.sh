@@ -106,6 +106,13 @@ fi
 # shellcheck source=config.env
 source "$CONFIG_FILE"
 
+# Installer filenames — the local names under installers/ that need_installer
+# caches to. Defaults here (not in config.env) so a kit built straight from
+# config.env.example runs; override in config.env if your copies differ.
+RUSTDESK_DMG_ARM="${RUSTDESK_DMG_ARM:-rustdesk-aarch64.dmg}"
+RUSTDESK_DMG_INTEL="${RUSTDESK_DMG_INTEL:-rustdesk-x86_64.dmg}"
+CHROME_PKG="${CHROME_PKG:-googlechrome.pkg}"
+
 # Pick the right RustDesk/Wazuh installer for this machine's chip 
 ARCH=$(uname -m)
 if [[ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" == "1" ]]; then
