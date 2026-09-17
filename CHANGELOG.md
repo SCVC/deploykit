@@ -59,6 +59,10 @@ this project aims for [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - A failed enrollment no longer claims "the manager refused the registration"
   when the manager was never reached: agent-auth usage errors and connection
   failures are now reported as what they are.
+- **`macos/setup.sh` aborted on startup** with `RUSTDESK_DMG_ARM: unbound variable`
+  for any kit built from `config.env.example`: the installer filenames
+  (`RUSTDESK_DMG_ARM`, `RUSTDESK_DMG_INTEL`, `CHROME_PKG`) were referenced but
+  never assigned. They now default in `setup.sh`, overridable in `config.env`.
 
 ## Prior work
 
