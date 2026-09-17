@@ -35,6 +35,17 @@ this project aims for [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   encouraged pointing enrollment at the dashboard hostname (#16).
 - Colour codes in `macos/wazuh-enroll.sh` no longer print literally inside
   heredocs (usage text, troubleshooting, preflight guidance).
+- **Failed enrollments are no longer reported as successful.** `agent-auth` exits
+  0 on a rejected registration, and its result was discarded with `|| true`;
+  the macOS script now judges the attempt on its output and on whether a key
+  landed, and aborts with a diagnosis instead (#20).
+- Enrollment failures are classified and explained: a duplicate/stale agent
+  record (with the `manage_agents -l` / `-r` removal commands), a password
+  mismatch, or an unclassified authd refusal. Windows reads the same verdict out
+  of `ossec.log` after the MSI enrolls (#20).
+- Preflight guidance and the troubleshooting block now call out the
+  VPN-only-manager case: connect first, and expect disconnected agents whenever
+  the tunnel drops (#20).
 
 ## Prior work
 

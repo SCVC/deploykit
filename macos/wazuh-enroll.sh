@@ -360,6 +360,10 @@ ${YELLOW}=== Enrollment host is not usable ===${NC}
     • a DNS-only (grey-cloud) record pointing at the manager's IP, or
     • the manager's LAN / VPN IP address.
 
+  If the manager is only published on the internal network, connect to the VPN
+  first and re-run — an agent enrolled over the VPN also needs it up to stay
+  'Active', or the dashboard will show it disconnected once the tunnel drops.
+
   Then confirm 1515/tcp and 1514/tcp are open end to end (host firewall,
   security group, NAT/port-forward).
 
@@ -471,6 +475,69 @@ set_manager_address() {
     || warn "Could not update <address> automatically — check ${OSSEC_CONF} manually."
 }
 
+# Explain an agent-auth failure in terms the operator can act on. authd closes
+# the socket on a rejected registration, so the agent side usually sees nothing
+# more useful than 'Connection reset by peer'.
+diagnose_enroll_failure() {
+  local out="$1" manager="$2"
+  local matched=0
+
+  if grep -qiE 'connection reset by peer|duplicate agent|already present' <<<"$out"; then
+    matched=1
+    cat >&2 <<EOF
+
+${YELLOW}Most likely: the manager rejected this registration as a duplicate.${NC}
+
+  A reset immediately after a successful port check means authd accepted the
+  connection and then closed it. The usual cause is a stale agent record — a
+  machine that was enrolled before (for example against a previous manager
+  hostname) still holds an entry under this name or IP.
+
+  On the Wazuh manager:
+    /var/ossec/bin/manage_agents -l                # list agents, find the stale entry
+    /var/ossec/bin/manage_agents -r <agent-id>     # remove it
+
+  (Dashboard → Agents → select → Delete does the same, but the account needs
+  the 'agent:delete' permission.)
+
+  Then re-run this script. To keep the old record instead, enroll under a
+  different name:
+    sudo ./${SCRIPT_NAME} -e ${manager} -n <new-name>
+
+EOF
+  fi
+
+  if grep -qiE 'invalid password|unable to verify|password' <<<"$out"; then
+    matched=1
+    cat >&2 <<EOF
+
+${YELLOW}Possible cause: wrong or missing enrollment password.${NC}
+
+  authd on the manager compares what this agent sent against
+  /var/ossec/etc/authd.pass on the manager. Re-run with -p '<password>' (or
+  pick 'password required' in the interactive menu).
+
+EOF
+  fi
+
+  if [[ $matched -eq 0 ]]; then
+    cat >&2 <<EOF
+
+${YELLOW}The manager refused the registration.${NC}
+
+  Check authd on the manager: it must be running, listening on 1515, and willing
+  to accept this agent (name/IP not already taken, password policy matched).
+
+EOF
+  fi
+
+  cat >&2 <<EOF
+  Agent-side detail: ${OSSEC_BASE}/logs/ossec.log
+  Manager-side detail: /var/ossec/logs/ossec.log on the manager (authd lines).
+
+EOF
+}
+
 enroll_agent() {
   local manager="$1" agent="$2" pw="${3:-}"
   detect_paths
@@ -478,18 +545,35 @@ enroll_agent() {
 
   info "Running agent-auth enrollment (agent name: '${agent}')…"
 
+  local out="" rc=0
   if [[ -n "$pw" ]]; then
     local tmp_pass
     tmp_pass="$(mktemp)"
     printf '%s' "$pw" > "$tmp_pass"
     chmod 600 "$tmp_pass"
-    "$AGENT_AUTH_BIN" -m "$manager" -A "$agent" -f "$tmp_pass" 2>>"$LOG_FILE" || true
+    out="$("$AGENT_AUTH_BIN" -m "$manager" -A "$agent" -f "$tmp_pass" 2>&1)" || rc=$?
     rm -f "$tmp_pass"
   else
-    "$AGENT_AUTH_BIN" -m "$manager" -A "$agent" 2>>"$LOG_FILE" || true
+    out="$("$AGENT_AUTH_BIN" -m "$manager" -A "$agent" 2>&1)" || rc=$?
   fi
 
-  ok "agent-auth enrollment complete."
+  printf '%s\n' "$out" >> "$LOG_FILE"
+
+  # agent-auth can exit 0 on a rejected registration, so judge it on its output
+  # and on whether a key actually landed.
+  if [[ $rc -eq 0 ]] \
+     && ! grep -qiE 'error|connection reset|duplicate|unable to' <<<"$out" \
+     && [[ -s "$CLIENT_KEYS" ]]; then
+    ok "agent-auth enrollment complete."
+    return 0
+  fi
+
+  err "agent-auth did not enroll this machine (exit ${rc})."
+  if [[ -n "$out" ]]; then
+    printf '%s\n' "$out" | sed 's/^/    /' >&2
+  fi
+  diagnose_enroll_failure "$out" "$manager"
+  die "Enrollment failed — nothing was registered. Full log: ${LOG_FILE}"
 }
 
 # ──────────────────────────────────────────────
@@ -536,9 +620,15 @@ ${YELLOW}=== Troubleshooting ===${NC}
 
 Common causes:
   1. Wrong password         — verify and re-run
-  2. Duplicate agent name   — remove old agent on manager or choose a different name
+  2. Duplicate agent name   — a stale record from an earlier enrollment (often
+                              under a previous manager hostname) still holds this
+                              name or IP. On the manager:
+                                /var/ossec/bin/manage_agents -l
+                                /var/ossec/bin/manage_agents -r <agent-id>
   3. Port blocked           — ensure outbound 1515/tcp and 1514/tcp are open
-  4. DNS / routing issue    — confirm the manager hostname resolves correctly
+  4. VPN required           — if the manager is internal-only, connect to the VPN
+                              (and stay on it, or the agent shows as disconnected)
+  5. DNS / routing issue    — confirm the manager hostname resolves correctly
 
 Diagnostic commands:
 EOF
