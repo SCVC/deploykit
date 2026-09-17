@@ -486,23 +486,31 @@ diagnose_enroll_failure() {
     matched=1
     cat >&2 <<EOF
 
-${YELLOW}Most likely: the manager rejected this registration as a duplicate.${NC}
+${YELLOW}The manager accepted the connection and then closed it.${NC}
 
-  A reset immediately after a successful port check means authd accepted the
-  connection and then closed it. The usual cause is a stale agent record — a
-  machine that was enrolled before (for example against a previous manager
-  hostname) still holds an entry under this name or IP.
+  A reset right after a successful port check means authd refused the
+  registration. It does not say why — the reason is one line in the manager's
+  own log, so read that first:
 
-  On the Wazuh manager:
-    /var/ossec/bin/manage_agents -l                # list agents, find the stale entry
-    /var/ossec/bin/manage_agents -r <agent-id>     # remove it
+    grep -i authd /var/ossec/logs/ossec.log        # on the manager
 
-  (Dashboard → Agents → select → Delete does the same, but the account needs
-  the 'agent:delete' permission.)
+  The two usual verdicts:
 
-  Then re-run this script. To keep the old record instead, enroll under a
-  different name:
-    sudo ./${SCRIPT_NAME} -e ${manager} -n <new-name>
+  1. 'Invalid password provided by <ip>. Closing connection.'
+     The manager requires an enrollment password (<use_password>yes</use_password>).
+     Re-run with -p '<password>'; it must match /var/ossec/etc/authd.pass there.
+
+  2. A duplicate/stale record — a machine enrolled earlier (often against a
+     previous manager hostname) still holds this name or IP:
+
+       /var/ossec/bin/manage_agents -l             # list agents, find the stale entry
+       /var/ossec/bin/manage_agents -r <agent-id>  # remove it
+
+     (Dashboard → Agents → select → Delete does the same, but the account
+     needs the 'agent:delete' permission.)
+
+     Then re-run, or keep the old record and enroll under another name:
+       sudo ./${SCRIPT_NAME} -e ${manager} -n <new-name>
 
 EOF
   fi

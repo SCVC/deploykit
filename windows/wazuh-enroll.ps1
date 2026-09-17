@@ -193,21 +193,31 @@ if ((Test-Path $keys) -and (Get-Item $keys).Length -gt 0) {
 
     if ($recent -match '(?i)connection reset by peer|duplicate agent|already present') {
         Write-Host ""
-        Write-Host "Most likely: the manager rejected this registration as a duplicate." -ForegroundColor Yellow
+        Write-Host "The manager accepted the connection and then closed it." -ForegroundColor Yellow
         Write-Host @"
 
-  The usual cause is a stale agent record --- a machine enrolled earlier (often
-  against a previous manager hostname) still holds an entry under this name or IP.
+  authd refused the registration but does not say why on this side. The reason
+  is one line in the manager's own log, so read that first:
 
-  On the Wazuh manager:
-    /var/ossec/bin/manage_agents -l                # list agents, find the stale entry
-    /var/ossec/bin/manage_agents -r <agent-id>     # remove it
+    grep -i authd /var/ossec/logs/ossec.log        # on the manager
 
-  (Dashboard -> Agents -> select -> Delete does the same, but the account needs
-  the 'agent:delete' permission.)
+  The two usual verdicts:
 
-  Then re-run this script, or enroll under a different name to keep the old
-  record:  .\wazuh-enroll.ps1 -AgentName <new-name>
+  1. 'Invalid password provided by <ip>. Closing connection.'
+     The manager requires an enrollment password; re-run with the right one
+     (it must match /var/ossec/etc/authd.pass on the manager).
+
+  2. A duplicate/stale record --- a machine enrolled earlier (often against a
+     previous manager hostname) still holds this name or IP:
+
+       /var/ossec/bin/manage_agents -l             # list agents, find the stale entry
+       /var/ossec/bin/manage_agents -r <agent-id>  # remove it
+
+     (Dashboard -> Agents -> select -> Delete does the same, but the account
+     needs the 'agent:delete' permission.)
+
+     Then re-run, or enroll under a different name to keep the old record:
+       .\wazuh-enroll.ps1 -AgentName <new-name>
 
 "@
     } elseif ($recent -match '(?i)invalid password|unable to verify') {
