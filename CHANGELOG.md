@@ -33,6 +33,8 @@ this project aims for [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   bash `/dev/tcp` when `nc` is missing, rather than skipping.
 - Dropped the misleading `siem.example.org` enrollment-host example that
   encouraged pointing enrollment at the dashboard hostname (#16).
+- Colour codes in `macos/wazuh-enroll.sh` no longer print literally inside
+  heredocs (usage text, troubleshooting, preflight guidance).
 
 ## Prior work
 

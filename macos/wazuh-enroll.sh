@@ -13,8 +13,10 @@ LOG_FILE="/tmp/${SCRIPT_NAME%.*}-$(date +%Y%m%d-%H%M%S).log"
 # ──────────────────────────────────────────────
 #  Colours
 # ──────────────────────────────────────────────
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+# ANSI-C quoting so these hold real escapes: 'echo -e' renders them as before,
+# and they now also render inside heredocs (usage, troubleshooting, guidance).
+RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'; CYAN=$'\033[0;36m'; BOLD=$'\033[1m'; NC=$'\033[0m'
 
 info() { echo -e "${BLUE}[INFO]${NC} $*" | tee -a "$LOG_FILE"; }
 ok()   { echo -e "${GREEN}[ OK ]${NC} $*" | tee -a "$LOG_FILE"; }
