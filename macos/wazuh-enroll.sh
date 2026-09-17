@@ -7,6 +7,7 @@ set -euo pipefail
 # ──────────────────────────────────────────────
 SCRIPT_NAME="$(basename "$0")"
 WAZUH_MAC_PKG_VER="${WAZUH_MAC_PKG_VER:-4.14.3-1}"
+FORCE=0
 LOG_FILE="/tmp/${SCRIPT_NAME%.*}-$(date +%Y%m%d-%H%M%S).log"
 
 # ──────────────────────────────────────────────
@@ -70,6 +71,7 @@ Options:
   -n  Agent name       (default: machine hostname)
   -p  Password         (optional)
   -h  Show this help
+  --force              Enroll even if the 1515/1514 preflight check fails
   --remove             Uninstall and remove the Wazuh agent
 
 EOF
@@ -136,7 +138,9 @@ _manual_install() {
 
   # ── Enrollment server ──
   echo -e "${BOLD}Enrollment Server${NC}"
-  echo -e "  ${BLUE}Examples:${NC} wazuh.example.com  |  siem.example.org  |  192.168.1.100/24"
+  echo -e "  ${BLUE}Examples:${NC} wazuh.example.com  |  192.168.1.100"
+  echo -e "  ${YELLOW}Must reach the manager on raw TCP 1515/1514${NC} — a DNS-only record or an IP."
+  echo -e "  ${YELLOW}Not the HTTPS-only dashboard hostname (a proxy/CDN does not forward those ports).${NC}"
   read -rp "  Enter enrollment host: " ENROLL_HOST
   [[ -n "${ENROLL_HOST:-}" ]] || die "Enrollment host cannot be empty."
   echo ""
@@ -297,23 +301,74 @@ remove_agent() {
 }
 
 # ──────────────────────────────────────────────
-#  Network check
+#  Network check — hard gate
+#
+#  Registration (1515) and agent comms (1514) are RAW TCP, not HTTP: an
+#  HTTPS-only reverse proxy or CDN in front of the manager forwards 443 and
+#  silently drops both. The name resolves, the dashboard loads, and
+#  agent-auth fails with nothing useful in the log — so abort here instead
+#  of enrolling blind.
 # ──────────────────────────────────────────────
-check_ports() {
-  local host="$1"
-  if ! command -v nc &>/dev/null; then
-    warn "nc not found; skipping port check."
+port_open() {
+  local host="$1" port="$2"
+  if command -v nc &>/dev/null; then
+    nc -z -w3 "$host" "$port" &>/dev/null
     return
   fi
+  # Fallback for hosts without nc — bash /dev/tcp, with our own 3s watchdog.
+  ( exec 3<>"/dev/tcp/${host}/${port}" ) &>/dev/null &
+  local pid=$! waited=0
+  while kill -0 "$pid" 2>/dev/null && (( waited < 30 )); do sleep 0.1; waited=$(( waited + 1 )); done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    return 1
+  fi
+  wait "$pid"
+}
+
+check_ports() {
+  local host="$1"
+  local -a unreachable=()
   info "Checking connectivity to ${host} on ports 1514 / 1515…"
   local port
   for port in 1515 1514; do
-    if nc -z -w3 "$host" "$port" &>/dev/null; then
+    if port_open "$host" "$port"; then
       ok "  ${host}:${port} — reachable"
     else
-      warn "  ${host}:${port} — unreachable (verify firewall / routing)"
+      err "  ${host}:${port} — unreachable"
+      unreachable+=("$port")
     fi
   done
+
+  [[ ${#unreachable[@]} -eq 0 ]] && return 0
+
+  cat >&2 <<EOF
+
+${YELLOW}=== Enrollment host is not usable ===${NC}
+
+  Wazuh registration (1515/tcp) and agent comms (1514/tcp) are raw TCP. They
+  are not HTTP and cannot pass through an HTTPS-only reverse proxy or CDN.
+
+  If '${host}' is the Wazuh *dashboard* hostname behind a proxy (e.g. a
+  Cloudflare orange-cloud record), only 443 is forwarded: the name resolves,
+  the dashboard loads, and enrollment still fails — silently.
+
+  Use instead:
+    • a DNS-only (grey-cloud) record pointing at the manager's IP, or
+    • the manager's LAN / VPN IP address.
+
+  Then confirm 1515/tcp and 1514/tcp are open end to end (host firewall,
+  security group, NAT/port-forward).
+
+EOF
+
+  local ports; ports="$(IFS=','; echo "${unreachable[*]}")"
+  if [[ "$FORCE" -eq 1 ]]; then
+    warn "--force given — continuing despite unreachable port(s): ${ports}"
+    return 0
+  fi
+  die "Manager ${host} unreachable on TCP ${ports}. Fix the host, or re-run with --force to enroll anyway."
 }
 
 # ──────────────────────────────────────────────
@@ -505,15 +560,23 @@ EOF
 #  Argument parsing (non-interactive mode)
 # ──────────────────────────────────────────────
 parse_args() {
-  # Handle --remove flag
+  # Pull the long options out before getopts sees them
+  local -a rest=()
+  local arg
   for arg in "$@"; do
-    if [[ "$arg" == "--remove" ]]; then
-      need_root
-      detect_paths
-      remove_agent
-      exit 0
-    fi
+    case "$arg" in
+      --remove)
+        need_root
+        detect_paths
+        remove_agent
+        exit 0
+        ;;
+      --force) FORCE=1 ;;
+      --*)     usage; die "Unknown option: $arg" ;;
+      *)       rest+=("$arg") ;;
+    esac
   done
+  set -- "${rest[@]+"${rest[@]}"}"
 
   if [[ $# -eq 0 ]]; then
     main_menu
