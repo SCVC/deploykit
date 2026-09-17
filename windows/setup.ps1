@@ -18,7 +18,6 @@ $RUSTDESK_RELAY = $RUSTDESK_HOST
 
 # Installer filenames
 $RUSTDESK_EXE = "rustdesk-x86_64.exe"
-$FLEET_MSI    = "fleet-osquery.msi"
 $CHROME_MSI   = "googlechrome64.msi"
 $CHROME_URL   = "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi"
 
@@ -276,37 +275,15 @@ function Do-Wazuh {
     return ($LASTEXITCODE -eq 0 -or $null -eq $LASTEXITCODE)
 }
 
-# ---------- 3) Fleet --------------------------------------------
+# ---------- 3) Fleet (fleet-enroll.ps1) -------------------------
 function Install-Fleet {
-    Log "--- FleetDM: install fleetd (this also enrolls the host) ---"
-    #   fleetctl package --type=msi --enable-scripts --fleet-desktop \
-    #     --fleet-url=$FLEET_URL --enroll-secret=<secret>
-    $msi = Fetch-Installer $FLEET_MSI $FLEET_MSI_URL   # org-hosted fleetd MSI (config.env); enroll secret baked in
-    if (-not $msi) { return $false }
-    $p = Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/qn" -Wait -PassThru
-    if ($p.ExitCode -ne 0) { Fail "Fleet MSI failed (exit $($p.ExitCode))."; return $false }
-    Start-Sleep -Seconds 5
-    $svc = Get-Service "Fleet osquery" -ErrorAction SilentlyContinue
-    if ($svc -and $svc.Status -eq "Running") {
-        Ok "fleetd installed and running (enroll secret baked into the MSI)."
-        Log "MANUAL CHECK: confirm this host appears at $FLEET_URL"
-
-        # Restart the orbit service to force re-enrollment/config re-read, then relaunch Fleet Desktop
-        Log "Restarting Fleet osquery service to pick up new enrollment..."
-        Restart-Service -Name "Fleet osquery" -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 3
-
-        # Verify the service actually restarted before relaunching Desktop
-        $svc = Get-Service -Name "Fleet osquery" -ErrorAction SilentlyContinue
-        if (-not $svc -or $svc.Status -ne "Running") { Fail "Fleet service failed to restart after enrollment."; return $false }
-
-        # Relaunch Fleet Desktop GUI
-        Log "Relaunching Fleet Desktop..."
-        Start-Process -FilePath "$env:ProgramFiles\Orbit\bin\desktop\fleet-desktop.exe" -ErrorAction SilentlyContinue
-        return $true
-    }
-    Fail "Fleet service not running after install."
-    return $false
+    Log "--- FleetDM: install fleetd (via fleet-enroll.ps1) ---"
+    $fe = Join-Path $ScriptDir "fleet-enroll.ps1"
+    if (-not (Test-Path $fe)) { Fail "fleet-enroll.ps1 not found next to setup.ps1."; return $false }
+    # fleet-enroll.ps1 reads FLEET_* / CF_ACCESS_* from config.env itself; it skips
+    # cleanly (exit 0) with fleetctl build-and-host guidance when no package is set.
+    & $fe
+    return ($LASTEXITCODE -eq 0 -or $null -eq $LASTEXITCODE)
 }
 
 # ---------- 4) Chrome install -----------------------------------

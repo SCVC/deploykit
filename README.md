@@ -39,6 +39,7 @@ for your OS.
 | Onboard a new machine (apps + prefs) | `onboarding/macos-onboard.sh` | `onboarding/windows-onboard.ps1` |
 | Full setup (remote/SIEM/fleet/browser) | `macos/setup.sh` | `windows/setup.ps1` |
 | Wazuh SIEM enrollment | `macos/wazuh-enroll.sh` | `windows/wazuh-enroll.ps1` |
+| FleetDM (osquery) enrollment | `macos/fleet-enroll.sh` | `windows/fleet-enroll.ps1` |
 | Backup / cleanup helpers | `scripts/*.sh` | — |
 
 Integrates with **RustDesk** (remote support), **Wazuh** (SIEM), **FleetDM/osquery**,
@@ -61,13 +62,47 @@ cp config.env.example config.env     # then fill in your org's real values
 the repo root (or beside the script). The Wazuh enrollment password is prompted
 securely at runtime, never stored.
 
+### Wazuh enrollment host
+
+`WAZUH_ENROLL_HOST` must reach the manager on **raw TCP 1515** (registration) and
+**1514** (agent comms). Those are not HTTP and do not survive an HTTPS-only reverse
+proxy or CDN — point this at a **DNS-only** record (Cloudflare grey cloud) resolving
+to the manager's IP, or at its LAN/VPN address. Using the proxied *dashboard*
+hostname resolves and loads the UI but drops 1514/1515, so the agent never enrolls.
+
+Enrollment now **aborts** when those ports are unreachable; `--force` (macOS) or
+`-Force` (Windows) overrides the check if you know the path is open.
+
+### FleetDM agent package
+
+Fleet's agent is built per organization — the Fleet URL and enroll secret are
+compiled into the package — so there is nothing generic to download. Build it once
+with [`fleetctl`](https://fleetdm.com/docs/using-fleet/fleetctl-cli) and host it
+where machines can fetch it:
+
+```bash
+fleetctl login                                    # against your Fleet server
+fleetctl package --type=pkg --fleet-desktop \
+  --fleet-url=https://fleet.example.com \
+  --enroll-secret=<your-enroll-secret>            # .pkg for macOS
+fleetctl package --type=msi --fleet-desktop \
+  --fleet-url=https://fleet.example.com \
+  --enroll-secret=<your-enroll-secret>            # .msi for Windows
+```
+
+Publish the artifacts (GitHub Release, internal share, object storage — optionally
+behind Cloudflare Access) and set `FLEET_PKG_URL` / `FLEET_MSI_URL` in `config.env`,
+or drop them at `installers/fleet-osquery.pkg` / `installers\fleet-osquery.msi` on
+the kit. With neither set, `fleet-enroll.*` **skips cleanly** and prints these steps —
+the rest of the setup still runs.
+
 ## Repository layout
 
 ```
 deploykit/
 ├── install.sh / install.ps1   # bootstrap (curl|bash / irm|iex)
 ├── config.env.example          # copy → config.env (git-ignored)
-├── macos/      windows/        # per-OS setup + Wazuh enrollment
+├── macos/      windows/        # per-OS setup + Wazuh / Fleet enrollment
 ├── onboarding/                 # new-machine app + preference bootstrap
 ├── scripts/                    # backup / cleanup / checklist helpers
 ├── docs/                       # implementation notes
@@ -112,6 +147,8 @@ to report vulnerabilities privately. In short:
 - [x] Runtime installer fetch — macOS (Chrome/RustDesk/Wazuh auto; Fleet via `FLEET_PKG_URL`)
 - [x] Windows Fleet install uses `FLEET_MSI_URL` — parity with macOS
 - [x] Self-heal / drift-reconcile (Fleet/Wazuh/RustDesk) — macOS + Windows
+- [x] Wazuh preflight aborts on unreachable 1515/1514 (`--force` to override)
+- [x] Dedicated Fleet enroll scripts that skip cleanly when no package is configured
 - [x] CI hardening + contribution governance (branch protection, PR template, CONTRIBUTING/SECURITY)
 
 ## License
