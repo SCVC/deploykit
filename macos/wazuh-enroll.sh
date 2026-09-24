@@ -515,7 +515,9 @@ ${YELLOW}The manager accepted the connection and then closed it.${NC}
 EOF
   fi
 
-  if grep -qiE 'invalid password|unable to verify|password' <<<"$out"; then
+  # Not a bare 'password': agent-auth logs 'No authentication password provided'
+  # / 'Using password specified on file' on every run, failed or not.
+  if grep -qiE 'invalid password|unable to verify' <<<"$out"; then
     matched=1
     cat >&2 <<EOF
 
@@ -553,7 +555,10 @@ enroll_agent() {
 
   info "Running agent-auth enrollment (agent name: '${agent}')…"
 
-  local out="" rc=0
+  # Snapshot client.keys first: a machine enrolled before (the re-enroll case)
+  # already has a key there, so non-empty alone does not prove a new key landed.
+  local out="" rc=0 keys_before=""
+  [[ -f "$CLIENT_KEYS" ]] && keys_before="$(cat "$CLIENT_KEYS")"
   if [[ -n "$pw" ]]; then
     local tmp_pass
     tmp_pass="$(mktemp)"
@@ -568,10 +573,10 @@ enroll_agent() {
   printf '%s\n' "$out" >> "$LOG_FILE"
 
   # agent-auth can exit 0 on a rejected registration, so judge it on its output
-  # and on whether a key actually landed.
+  # and on whether a new key actually landed.
   if [[ $rc -eq 0 ]] \
      && ! grep -qiE 'error|connection reset|duplicate|unable to' <<<"$out" \
-     && [[ -s "$CLIENT_KEYS" ]]; then
+     && [[ -s "$CLIENT_KEYS" && "$(cat "$CLIENT_KEYS")" != "$keys_before" ]]; then
     ok "agent-auth enrollment complete."
     return 0
   fi
