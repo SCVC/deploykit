@@ -73,6 +73,20 @@ hostname resolves and loads the UI but drops 1514/1515, so the agent never enrol
 Enrollment now **aborts** when those ports are unreachable; `--force` (macOS) or
 `-Force` (Windows) overrides the check if you know the path is open.
 
+If the manager is published only on the internal network, **connect to the VPN
+before enrolling** — and keep it up afterwards, or the agent reports as
+disconnected/inactive whenever the tunnel is down.
+
+A registration that is refused *after* the port check passes (classically
+`Connection reset by peer`) is almost always a **duplicate**: a machine enrolled
+earlier — often against a previous manager hostname — still holds a record under
+that name or IP. The scripts now say so and print the removal commands:
+
+```bash
+/var/ossec/bin/manage_agents -l              # on the manager: find the stale entry
+/var/ossec/bin/manage_agents -r <agent-id>   # remove it, then re-run enrollment
+```
+
 ### FleetDM agent package
 
 Fleet's agent is built per organization — the Fleet URL and enroll secret are

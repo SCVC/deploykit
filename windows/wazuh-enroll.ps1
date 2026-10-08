@@ -122,6 +122,10 @@ if ($unreachable.Count -gt 0) {
     - a DNS-only (grey-cloud) record pointing at the manager's IP, or
     - the manager's LAN / VPN IP address.
 
+  If the manager is only published on the internal network, connect to the VPN
+  first and re-run --- an agent enrolled over the VPN also needs it up to stay
+  'Active', or the dashboard will show it disconnected once the tunnel drops.
+
   Then confirm 1515/tcp and 1514/tcp are open end to end (host firewall,
   security group, NAT/port-forward).
 
@@ -180,7 +184,51 @@ if ((Test-Path $keys) -and (Get-Item $keys).Length -gt 0) {
     Ok "Enrolled: $entry"
 } else {
     Fail "client.keys is empty --- enrollment failed."
-    Warn "Common causes: wrong password, duplicate agent name, port 1515 blocked."
+
+    # authd closes the socket on a rejected registration, so the useful detail is
+    # in the agent's own log rather than the MSI exit code.
+    $log    = Join-Path $OssecDir "ossec.log"
+    $recent = ""
+    if (Test-Path $log) { $recent = (Get-Content $log -Tail 80 -ErrorAction SilentlyContinue) -join "`n" }
+
+    if ($recent -match '(?i)connection reset by peer|duplicate agent|already present') {
+        Write-Host ""
+        Write-Host "The manager accepted the connection and then closed it." -ForegroundColor Yellow
+        Write-Host @"
+
+  authd refused the registration but does not say why on this side. The reason
+  is one line in the manager's own log, so read that first:
+
+    grep -i authd /var/ossec/logs/ossec.log        # on the manager
+
+  The two usual verdicts:
+
+  1. 'Invalid password provided by <ip>. Closing connection.'
+     The manager requires an enrollment password; re-run with the right one
+     (it must match /var/ossec/etc/authd.pass on the manager).
+
+  2. A duplicate/stale record --- a machine enrolled earlier (often against a
+     previous manager hostname) still holds this name or IP:
+
+       /var/ossec/bin/manage_agents -l             # list agents, find the stale entry
+       /var/ossec/bin/manage_agents -r <agent-id>  # remove it
+
+     (Dashboard -> Agents -> select -> Delete does the same, but the account
+     needs the 'agent:delete' permission.)
+
+     Then re-run, or enroll under a different name to keep the old record:
+       .\wazuh-enroll.ps1 -AgentName <new-name>
+
+"@
+    } elseif ($recent -match '(?i)invalid password|unable to verify') {
+        Write-Host ""
+        Write-Host "Most likely: wrong or missing enrollment password." -ForegroundColor Yellow
+        Write-Host "  authd compares what this agent sent against /var/ossec/etc/authd.pass on the manager."
+        Write-Host ""
+    } else {
+        Warn "Common causes: wrong password, duplicate agent name, 1515/tcp blocked,"
+        Warn "or the manager being reachable only over the VPN (connect, then re-run)."
+    }
     Warn "See: $OssecDir\ossec.log"
     exit 1
 }
@@ -193,6 +241,7 @@ if ($state -match "connected") {
     Ok "Agent status: connected to manager."
 } else {
     Warn "Agent state: $state (give it a minute, then check the Wazuh dashboard)"
+    Warn "If the manager is internal-only, the agent reports disconnected whenever the VPN is down."
 }
 
 Log "=== Done. Verify '$AgentName' shows Active in the Wazuh dashboard. ===" "Cyan"
