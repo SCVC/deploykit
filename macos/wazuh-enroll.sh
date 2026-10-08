@@ -530,13 +530,40 @@ ${YELLOW}Possible cause: wrong or missing enrollment password.${NC}
 EOF
   fi
 
+  if grep -qiE 'invalid option|unknown option|^usage:|usage: agent-auth' <<<"$out"; then
+    matched=1
+    cat >&2 <<EOF
+
+${YELLOW}agent-auth rejected its own arguments — the manager was never contacted.${NC}
+
+  That is a bug in this script, not a problem with the server or the password.
+  Please report the agent-auth output above.
+
+EOF
+  fi
+
+  if grep -qiE 'unable to connect|connection refused|no route to host|timed out|could not resolve|name or service not known' <<<"$out"; then
+    matched=1
+    cat >&2 <<EOF
+
+${YELLOW}Could not reach the manager on 1515 — nothing was registered.${NC}
+
+  The port preflight passed earlier, so this is usually TLS or routing rather
+  than a closed port: confirm '${manager}' is the enrollment host (a DNS-only
+  record or an IP), not an HTTPS-only dashboard name, and re-run.
+
+EOF
+  fi
+
   if [[ $matched -eq 0 ]]; then
     cat >&2 <<EOF
 
-${YELLOW}The manager refused the registration.${NC}
+${YELLOW}Enrollment did not complete.${NC}
 
-  Check authd on the manager: it must be running, listening on 1515, and willing
-  to accept this agent (name/IP not already taken, password policy matched).
+  If the manager was reached, its own log says why — that is the only place the
+  reason appears:  grep -i authd /var/ossec/logs/ossec.log
+  Otherwise check that authd is running and listening on 1515, and that this
+  agent's name and IP are not already taken.
 
 EOF
   fi
@@ -559,16 +586,12 @@ enroll_agent() {
   # already has a key there, so non-empty alone does not prove a new key landed.
   local out="" rc=0 keys_before=""
   [[ -f "$CLIENT_KEYS" ]] && keys_before="$(cat "$CLIENT_KEYS")"
-  if [[ -n "$pw" ]]; then
-    local tmp_pass
-    tmp_pass="$(mktemp)"
-    printf '%s' "$pw" > "$tmp_pass"
-    chmod 600 "$tmp_pass"
-    out="$("$AGENT_AUTH_BIN" -m "$manager" -A "$agent" -f "$tmp_pass" 2>&1)" || rc=$?
-    rm -f "$tmp_pass"
-  else
-    out="$("$AGENT_AUTH_BIN" -m "$manager" -A "$agent" 2>&1)" || rc=$?
-  fi
+  # agent-auth takes no password-FILE option. It accepts -P <password> — which
+  # would expose the password in ps(1) — or reads ${AUTH_PASS_FILE}, which
+  # write_authd_pass() has already written by the time we get here. The old
+  # '-f <file>' was not a valid option at all: agent-auth exited on the usage
+  # error without ever contacting the manager, and '|| true' hid it.
+  out="$("$AGENT_AUTH_BIN" -m "$manager" -A "$agent" 2>&1)" || rc=$?
 
   printf '%s\n' "$out" >> "$LOG_FILE"
 

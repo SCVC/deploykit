@@ -50,6 +50,15 @@ this project aims for [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Preflight guidance and the troubleshooting block now call out the
   VPN-only-manager case: connect first, and expect disconnected agents whenever
   the tunnel drops (#20).
+- **`agent-auth` was never passed the enrollment password.** The call used
+  `-f <file>`, which is not an `agent-auth` option — it accepts `-P <password>`
+  or reads `authd.pass`. agent-auth exited on the usage error without contacting
+  the manager at all, and `|| true` hid it. The flag is gone; the password comes
+  from `authd.pass`, which `write_authd_pass()` already writes moments earlier
+  (and which keeps it out of `ps`). Found on the first real-machine test.
+- A failed enrollment no longer claims "the manager refused the registration"
+  when the manager was never reached: agent-auth usage errors and connection
+  failures are now reported as what they are.
 
 ## Prior work
 
