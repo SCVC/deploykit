@@ -5,6 +5,10 @@
 #   Set-ExecutionPolicy -Scope Process Bypass -Force
 #   .\wazuh-enroll.ps1
 #
+# -Manager must reach the manager on raw TCP 1515/1514 (a DNS-only record or
+# an IP) --- not the HTTPS-only dashboard hostname. Use -Force to enroll even
+# when that preflight check fails.
+#
 # Prompts for the agent name (e.g. VC031); everything else is
 # pre-filled below. Uses installers\wazuh-agent-<ver>.msi from
 # the USB if present, otherwise downloads it from wazuh.com.
@@ -14,7 +18,8 @@ param(
     [string]$Manager   = "wazuh.example.com",
     [string]$AgentName = "",
     [string]$Password  = "",
-    [string]$Version   = "4.14.3-1"
+    [string]$Version   = "4.14.3-1",
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -88,12 +93,45 @@ while (-not $Password) {
 
 Log "Manager: $Manager   Agent name: $AgentName" "Cyan"
 
-# ---------- connectivity check --------------------------------
+# ---------- connectivity check (hard gate) --------------------
+#
+# Registration (1515) and agent comms (1514) are RAW TCP, not HTTP: an
+# HTTPS-only reverse proxy or CDN in front of the manager forwards 443 and
+# silently drops both, so the MSI installs and the agent never enrolls.
 
+$unreachable = @()
 foreach ($port in 1515, 1514) {
     $t = Test-NetConnection -ComputerName $Manager -Port $port -WarningAction SilentlyContinue
     if ($t.TcpTestSucceeded) { Ok "${Manager}:${port} --- reachable" }
-    else { Warn "${Manager}:${port} --- unreachable (check firewall/DNS); continuing anyway" }
+    else { Fail "${Manager}:${port} --- unreachable"; $unreachable += $port }
+}
+
+if ($unreachable.Count -gt 0) {
+    Write-Host ""
+    Write-Host "=== Enrollment host is not usable ===" -ForegroundColor Yellow
+    Write-Host @"
+
+  Wazuh registration (1515/tcp) and agent comms (1514/tcp) are raw TCP. They
+  are not HTTP and cannot pass through an HTTPS-only reverse proxy or CDN.
+
+  If '$Manager' is the Wazuh *dashboard* hostname behind a proxy (e.g. a
+  Cloudflare orange-cloud record), only 443 is forwarded: the name resolves,
+  the dashboard loads, and enrollment still fails --- silently.
+
+  Use instead:
+    - a DNS-only (grey-cloud) record pointing at the manager's IP, or
+    - the manager's LAN / VPN IP address.
+
+  Then confirm 1515/tcp and 1514/tcp are open end to end (host firewall,
+  security group, NAT/port-forward).
+
+"@
+    if ($Force) {
+        Warn "-Force given --- continuing despite unreachable port(s): $($unreachable -join ', ')"
+    } else {
+        Fail "Manager $Manager unreachable on $($unreachable -join '/'). Fix the host, or re-run with -Force to enroll anyway."
+        exit 1
+    }
 }
 
 # ---------- get the MSI ----------------------------------------
